@@ -1,0 +1,180 @@
+kind: pipeline
+type: docker
+name: tests
+
+volumes:
+  - name: go
+    host:
+      path: /caches/go
+
+trigger:
+  event:
+    include:
+      - push
+      - rollback
+    exclude:
+      - pull_request
+      - clone
+  branch:
+    exclude:
+      - deploy/**
+
+steps:
+  - name: test
+    pull: if-not-exists
+    image: deploy-beanstalk:2.0.0
+    volumes:
+      - name: go
+        path: /go
+    environment:
+      ADAPTER_ENVIRONMENT: test
+    commands:
+      - go test ./...
+
+---
+kind: pipeline
+type: docker
+name: build-and-deploy
+
+volumes:
+  - name: go
+    host:
+      path: /caches/go
+  - name: flags
+    host:
+      path: /caches/flags
+  - name: builds
+    host:
+      path: /caches/builds
+
+clone:
+  disable: true
+
+trigger:
+  event:
+    - push
+  branch:
+    - deploy/**
+
+steps:
+  - name: clone
+    pull: if-not-exists
+    image: drone/git:latest
+    commands:
+      - git init
+      - git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin +refs/heads/${DRONE_TARGET_BRANCH} +refs/heads/main
+      - git checkout ${DRONE_TARGET_BRANCH}
+
+      # is equal to main but with diferent hash? reset and exit drone
+      - |
+        # is equal to main?
+        if [ $(git diff --name-only origin/${DRONE_TARGET_BRANCH} origin/main | wc -c) = 0 ]; then
+          # hash is different from the main?
+          if [ $(git rev-parse origin/main) != $(git rev-parse origin/${DRONE_TARGET_BRANCH}) ]; then
+            echo \[$(date)] updating branch
+
+            git checkout main
+            git push origin -f main:${DRONE_TARGET_BRANCH}
+            touch EXIT
+            exit 0
+          fi
+        fi
+
+      # deploy/xxx/all? push to instances
+      - |
+        if [ $(echo ${DRONE_BRANCH} | cut -d/ -f3) = all ]; then
+          EV=$(echo $DRONE_BRANCH | cut -d/ -f2)
+
+          # iterate over settings/intance-$ENV.yml, *cut instance name and push
+          ls settings/*-$EV.yml | cut -d/ -f2 | cut -d"-" -f1 | xargs -I@ echo ${DRONE_TARGET_BRANCH}:deploy/$EV/@ | awk 'ORS=" "' | xargs git push origin -f
+        fi
+
+  - name: deploy
+    pull: if-not-exists
+    volumes:
+      - name: flags
+        path: /flags
+      - name: builds
+        path: /builds
+      - name: go
+        path: /go
+    image: deploy-beanstalk:2.0.0
+    commands:
+      - if [ -f EXIT ]; then exit 0; fi
+
+      - export EV=$(echo ${DRONE_BRANCH} | cut -d/ -f2)
+      - export AWS_REGION=us-east-2
+
+      - export APP=${DRONE_REPO_NAME}
+      - export ENV=$APP-${DRONE_BRANCH##*/}-$EV
+      - export VERSION=$APP.${DRONE_BRANCH##*/}.${DRONE_COMMIT_SHA:0:8}.`date +%Y%m%d`
+      - export FILE=${DRONE_COMMIT_SHA:0:8}.zip
+      - export DEST=s3-deploy-everson-$EV:${DRONE_REPO_NAME}/$FILE
+      - export CACHE_FILE=/builds/${DRONE_REPO_NAME}.$FILE
+
+      # check environment variables on EB
+      - checkenv -application=$APP -environment=$ENV -envs="$(grep -Eo '([A-Z][A-Z_0-9]+)$' settings/$EV.yml | xargs)"
+
+      - |
+        FLAG=/flags/${DRONE_REPO_NAME}.$EV.${DRONE_COMMIT_SHA:0:8}
+
+        if [ ! -f $FLAG ] && [ ! -f $FLAG.lock ]; then
+          touch $FLAG.lock
+          echo \[$(date)] locking...
+
+          if fileexistsons3 $DEST >/dev/null 2>&1; then
+            echo \[$(date)] build found on S3
+          else
+
+            if [ -f $CACHE_FILE ]; then
+              echo \[$(date)] using build from cache
+            else
+              echo \[$(date)] building...
+
+              # build go
+              go build -o application
+
+              # zip files
+              zip -r $CACHE_FILE application settings .ebextensions
+
+              # remove builds older than 5 days
+              find /builds/${DRONE_REPO_NAME}.* -type f -mtime +4 -exec rm {} +;
+            fi
+
+            echo \[$(date)] uploading...
+            uploads3 $CACHE_FILE $DEST
+          fi
+
+          rm -f $FLAG.lock
+          touch $FLAG
+
+          # remove flags older than 5 days ago
+          find /flags/${DRONE_REPO_NAME}.$EV* -type f -mtime +4 -exec rm {} +;
+
+        else
+          echo \[$(date)] waiting upload...
+          for i in $(seq 1 120); do
+            if [ -f $FLAG ]; then
+              break
+            elif [ $i = 120 ]; then
+              echo \[$(date)] timeout
+              exit 1
+            else
+              echo \[$(date)] ...
+              sleep 5
+            fi
+          done
+        fi
+
+        echo \[$(date)] updating EB...
+        updateeb -application=$APP -environment=$ENV -version=$VERSION -src=$DEST
+    environment:
+      AWS_ACCESS_KEY:
+        from_secret: AWS_ACCESS_KEY
+      AWS_SECRET_KEY:
+        from_secret: AWS_SECRET_KEY
+    when:
+      branch:
+        exclude:
+          - deploy/sandbox/all
