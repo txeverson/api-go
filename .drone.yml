@@ -22,7 +22,7 @@ trigger:
 steps:
   - name: test
     pull: if-not-exists
-    image: deploy-beanstalk:2.0.0
+    image: appmerci/deploy-beanstalk:2.0.0
     volumes:
       - name: go
         path: /go
@@ -99,7 +99,7 @@ steps:
         path: /builds
       - name: go
         path: /go
-    image: deploy-beanstalk:2.0.0
+    image: appmerci/deploy-beanstalk:2.0.0
     commands:
       - if [ -f EXIT ]; then exit 0; fi
 
