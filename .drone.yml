@@ -138,7 +138,7 @@ steps:
               # go build -o application
 
               # zip files
-              zip -r $CACHE_FILE application settings .ebextensions
+              zip -r $CACHE_FILE application.go settings .ebextensions go.mod
 
               # remove builds older than 5 days
               find /builds/${DRONE_REPO_NAME}.* -type f -mtime +4 -exec rm {} +;
