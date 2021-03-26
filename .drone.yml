@@ -22,7 +22,7 @@ trigger:
 steps:
   - name: test
     pull: if-not-exists
-    image: appmerci/deploy-beanstalk:2.0.0
+    image: deploy-beanstalk:2.0.0
     volumes:
       - name: go
         path: /go
@@ -117,6 +117,8 @@ steps:
       - checkenv -application=$APP -environment=$ENV -envs="$(grep -Eo '([A-Z][A-Z_0-9]+)$' settings/$EV.yml | xargs)"
 
       - |
+        echo \[$DEST]
+
         FLAG=/flags/${DRONE_REPO_NAME}.$EV.${DRONE_COMMIT_SHA:0:8}
 
         if [ ! -f $FLAG ] && [ ! -f $FLAG.lock ]; then
