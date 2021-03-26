@@ -29,10 +29,6 @@ steps:
     environment:
       ADAPTER_ENVIRONMENT: test
     commands:
-      - git init
-      - git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin +refs/heads/${DRONE_TARGET_BRANCH} +refs/heads/main
-      - git checkout ${DRONE_TARGET_BRANCH}
       - go test ./...
 
 ---
