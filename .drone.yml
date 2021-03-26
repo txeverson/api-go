@@ -63,19 +63,19 @@ steps:
     commands:
       - git init
       - git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin +refs/heads/${DRONE_TARGET_BRANCH} +refs/heads/main
+      - git fetch origin +refs/heads/${DRONE_TARGET_BRANCH} +refs/heads/master
       - git checkout ${DRONE_TARGET_BRANCH}
 
       # is equal to main but with diferent hash? reset and exit drone
       - |
         # is equal to main?
-        if [ $(git diff --name-only origin/${DRONE_TARGET_BRANCH} origin/main | wc -c) = 0 ]; then
+        if [ $(git diff --name-only origin/${DRONE_TARGET_BRANCH} origin/master | wc -c) = 0 ]; then
           # hash is different from the main?
-          if [ $(git rev-parse origin/main) != $(git rev-parse origin/${DRONE_TARGET_BRANCH}) ]; then
+          if [ $(git rev-parse origin/master) != $(git rev-parse origin/${DRONE_TARGET_BRANCH}) ]; then
             echo \[$(date)] updating branch
 
-            git checkout main
-            git push origin -f main:${DRONE_TARGET_BRANCH}
+            git checkout master
+            git push origin -f master:${DRONE_TARGET_BRANCH}
             touch EXIT
             exit 0
           fi
