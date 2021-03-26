@@ -135,7 +135,7 @@ steps:
               echo \[$(date)] building...
 
               # build go
-              go build -o application
+              go build -o bin/application
 
               # zip files
               zip -r $CACHE_FILE application settings .ebextensions
