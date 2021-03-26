@@ -13,28 +13,28 @@
 //
 // Client requests:
 // ----------------
-// $ curl http://localhost:3333/
+// $ curl http://localhost:5000/
 // root.
 //
-// $ curl http://localhost:3333/articles
+// $ curl http://localhost:5000/articles
 // [{"id":"1","title":"Hi"},{"id":"2","title":"sup"}]
 //
-// $ curl http://localhost:3333/articles/1
+// $ curl http://localhost:5000/articles/1
 // {"id":"1","title":"Hi"}
 //
-// $ curl -X DELETE http://localhost:3333/articles/1
+// $ curl -X DELETE http://localhost:5000/articles/1
 // {"id":"1","title":"Hi"}
 //
-// $ curl http://localhost:3333/articles/1
+// $ curl http://localhost:5000/articles/1
 // "Not Found"
 //
-// $ curl -X POST -d '{"id":"will-be-omitted","title":"awesomeness"}' http://localhost:3333/articles
+// $ curl -X POST -d '{"id":"will-be-omitted","title":"awesomeness"}' http://localhost:5000/articles
 // {"id":"97","title":"awesomeness"}
 //
-// $ curl http://localhost:3333/articles/97
+// $ curl http://localhost:5000/articles/97
 // {"id":"97","title":"awesomeness"}
 //
-// $ curl http://localhost:3333/articles
+// $ curl http://localhost:5000/articles
 // [{"id":"2","title":"sup"},{"id":"97","title":"awesomeness"}]
 //
 package main
@@ -46,6 +46,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -102,7 +103,13 @@ func main() {
 	// Passing -routes to the program will generate docs for the above
 	// router definition. See the `routes.json` file in this folder for
 
-	http.ListenAndServe(":3333", r)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "5000"
+	}
+
+	fmt.Printf("Listening on port %s\n\n", port)
+	http.ListenAndServe(":"+port, r)
 }
 
 func ListArticles(w http.ResponseWriter, r *http.Request) {
