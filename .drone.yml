@@ -107,11 +107,11 @@ steps:
       - export AWS_REGION=us-east-2
 
       - export APP=${DRONE_REPO_NAME}
-      - export ENV=${APP}-${DRONE_BRANCH##*/}-${EV}
-      - export VERSION=${APP}.${DRONE_BRANCH##*/}.${DRONE_COMMIT_SHA:0:8}.`date +%Y%m%d`
+      - export ENV=$APP-${DRONE_BRANCH##*/}-$EV
+      - export VERSION=$APP.${DRONE_BRANCH##*/}.${DRONE_COMMIT_SHA:0:8}.`date +%Y%m%d`
       - export FILE=${DRONE_COMMIT_SHA:0:8}.zip
       - export DEST=s3-deploy-everson-$EV:${DRONE_REPO_NAME}/$FILE
-      - export CACHE_FILE=/builds/${DRONE_REPO_NAME}.${FILE}
+      - export CACHE_FILE=/builds/${DRONE_REPO_NAME}.$FILE
 
       # check environment variables on EB
       - checkenv -application=$APP -environment=$ENV -envs="$(grep -Eo '([A-Z][A-Z_0-9]+)$' settings/$EV.yml | xargs)"
