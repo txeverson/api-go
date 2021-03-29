@@ -211,18 +211,32 @@ steps:
     pull: if-not-exists
     image: drone/git:latest
     commands:
+      - git config --global user.email "tx.everson@gmail.com"
+      - git config --global user.name "Everson Teixeira"
       - git init
       - git remote add origin ${DRONE_REMOTE_URL}
       - git fetch origin +refs/heads/master
+      - git fetch origin 'refs/tags/*:refs/tags/*'
       - git checkout master
-
-      # is equal to main but with diferent hash? reset and exit drone
       - |
-        MAJOR=$(git tag -l --sort=-v:refname | head -1 | cut -d. -f1)
-        MINOR=$(git tag -l --sort=-v:refname | head -1 | cut -d. -f2)
-        PATCH=$(git tag -l --sort=-v:refname | head -1 | cut -d. -f3)
+        VERS_OLD=$(git tag -l --sort=-v:refname "*-stable" | head -1)
+        MAJOR=$(echo $VERS_OLD | cut -d. -f1)
+        MINOR=$(echo $VERS_OLD | cut -d. -f2)
+        PATCH=$(echo $VERS_OLD | cut -d. -f3 | cut -d- -f1)
 
-        git tag -a MINOR+(MINOR+1)+0 -m "Mensagem de tag"
+        if [ -z "$MAJOR" ]; then
+          MAJOR=1
+        fi
+
+        if [ -z "$MINOR" ]; then
+          MINOR=0
+        else
+          MINOR=$(($MINOR+1))
+        fi
+
+        VERS_NEW=$MAJOR.$MINOR."0-stable"
+
+        git tag -a $VERS_NEW -m $VERS_NEW
         git push origin --tags
 
     environment:
