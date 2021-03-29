@@ -180,3 +180,57 @@ steps:
       branch:
         exclude:
           - deploy/sandbox/all
+
+---
+kind: pipeline
+type: docker
+name: release_prepare
+
+volumes:
+  - name: go
+    host:
+      path: /caches/go
+  - name: flags
+    host:
+      path: /caches/flags
+  - name: builds
+    host:
+      path: /caches/builds
+
+clone:
+  disable: true
+
+trigger:
+  event:
+    - push
+  branch:
+    - release_prepare
+
+steps:
+  - name: version
+    pull: if-not-exists
+    image: drone/git:latest
+    commands:
+      - git init
+      - git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin +refs/heads/master
+      - git checkout master
+
+      # is equal to main but with diferent hash? reset and exit drone
+      - |
+        MAJOR=$(git tag -l --sort=-v:refname | head -1 | cut -d. -f1)
+        MINOR=$(git tag -l --sort=-v:refname | head -1 | cut -d. -f2)
+        PATCH=$(git tag -l --sort=-v:refname | head -1 | cut -d. -f3)
+
+        git tag -a MINOR+(MINOR+1)+0 -m "Mensagem de tag"
+        git push origin --tags
+
+    environment:
+      AWS_ACCESS_KEY:
+        from_secret: AWS_ACCESS_KEY
+      AWS_SECRET_KEY:
+        from_secret: AWS_SECRET_KEY
+    when:
+      branch:
+        exclude:
+          - deploy/sandbox/all
