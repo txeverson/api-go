@@ -363,7 +363,7 @@ steps:
           EV=$(echo $DRONE_BRANCH | cut -d/ -f2)
 
           # iterate over settings/intance-$ENV.yml, *cut instance name and push
-          ls settings/*-$EV.yml | cut -d/ -f2 | cut -d"-" -f1 | xargs -I@ echo ${DRONE_TARGET_BRANCH}:deploy/$EV/@ | awk 'ORS=" "' | xargs git push origin -f
+          ls settings/*-prod.yml | cut -d/ -f2 | cut -d"-" -f1 | xargs -I@ echo ${DRONE_TARGET_BRANCH}:deploy/prod/@ | awk 'ORS=" "' | xargs git push origin -f
         fi
 
   - name: deploy
