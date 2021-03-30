@@ -34,7 +34,7 @@ steps:
 ---
 kind: pipeline
 type: docker
-name: build-and-deploy
+name: build-and-deploy-sbx
 
 volumes:
   - name: go
@@ -54,7 +54,7 @@ trigger:
   event:
     - push
   branch:
-    - deploy/**
+    - deploy/sandbox/**
 
 steps:
   - name: clone
@@ -205,7 +205,7 @@ trigger:
     - release_prepare
 
 steps:
-  - name: create_tag
+  - name: create-tag
     pull: if-not-exists
     image: drone/git:latest
     commands:
@@ -237,7 +237,7 @@ steps:
         git tag -a $VERS_NEW -m $VERS_NEW
         git push origin --tags
 
-  - name: create_image
+  - name: build-image-prd
     pull: if-not-exists
     volumes:
       - name: flags
@@ -315,3 +315,84 @@ steps:
         from_secret: AWS_ACCESS_KEY
       AWS_SECRET_KEY:
         from_secret: AWS_SECRET_KEY
+
+---
+kind: pipeline
+type: docker
+name: deploy-prd
+
+volumes:
+  - name: go
+    host:
+      path: /caches/go
+  - name: flags
+    host:
+      path: /caches/flags
+  - name: builds
+    host:
+      path: /caches/builds
+
+clone:
+  disable: true
+
+trigger:
+  event:
+    - push
+  branch:
+    - deploy/prod/**
+
+steps:
+  - name: clone
+    pull: if-not-exists
+    image: drone/git:latest
+    commands:
+      - git init
+      - git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin +refs/heads/${DRONE_TARGET_BRANCH} +refs/heads/master
+      - git fetch origin 'refs/tags/*:refs/tags/*'
+
+      # deploy/xxx/all? push to instances
+      - |
+        if [ $(echo ${DRONE_BRANCH} | cut -d/ -f3) = all ]; then
+          EV=$(echo $DRONE_BRANCH | cut -d/ -f2)
+
+          # iterate over settings/intance-$ENV.yml, *cut instance name and push
+          ls settings/*-$EV.yml | cut -d/ -f2 | cut -d"-" -f1 | xargs -I@ echo ${DRONE_TARGET_BRANCH}:deploy/$EV/@ | awk 'ORS=" "' | xargs git push origin -f
+        fi
+
+  - name: deploy
+    pull: if-not-exists
+    volumes:
+      - name: flags
+        path: /flags
+      - name: builds
+        path: /builds
+      - name: go
+        path: /go
+    image: appmerci/deploy-beanstalk:2.0.0
+    commands:
+      - if [ -f EXIT ]; then exit 0; fi
+      - export VERS=$(git tag -l --sort=-v:refname "*-stable" | head -1)
+      - export EV=prod
+      - export AWS_REGION=$([ $EV = "prod" ] && echo us-east-2 || echo us-east-2)
+      - export APP=${DRONE_REPO_NAME}
+      - export ENV=$APP-${DRONE_BRANCH##*/}-$EV
+      - export FILE=$VERS.zip
+      - export DEST=s3-deploy-everson-$EV:${DRONE_REPO_NAME}/$FILE
+      - export CACHE_FILE=/builds/${DRONE_REPO_NAME}.$FILE
+
+      # check environment variables on EB
+      - checkenv -application=$APP -environment=$ENV -envs="$(grep -Eo '([A-Z][A-Z_0-9]+)$' settings/$EV.yml | xargs)"
+
+      - |
+        echo \[$(date)] updating EB...
+        updateeb -application=$APP -environment=$ENV -version=$VERS -src=$DEST
+    environment:
+      AWS_ACCESS_KEY:
+        from_secret: AWS_ACCESS_KEY
+      AWS_SECRET_KEY:
+        from_secret: AWS_SECRET_KEY
+    when:
+      branch:
+        exclude:
+          - deploy/prod/all
