@@ -201,12 +201,10 @@ clone:
   disable: true
 
 trigger:
-  ref:
-    - refs/heads/release/**
   event:
-    - pull
+    - push
   branch:
-    - master
+    - release_prepare
 
 steps:
   - name: version
