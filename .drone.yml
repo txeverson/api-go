@@ -182,7 +182,7 @@ steps:
 ---
 kind: pipeline
 type: docker
-name: release_prepare
+name: prepare
 
 volumes:
   - name: go
