@@ -182,7 +182,7 @@ steps:
 ---
 kind: pipeline
 type: docker
-name: release_prepare
+name: prepare
 
 volumes:
   - name: go
@@ -229,13 +229,14 @@ steps:
 
         if [ -z "$MINOR" ]; then
           MINOR=0
-        elif [$ENV = "release"]; then
+        elif [ $ENV = release ]; then
           MINOR=$(($MINOR+1))
+          PATCH=0
         fi
 
         if [ -z "$PATCH" ]; then
           PATCH=0
-        elif [$ENV = "hotfix"]; then
+        elif [ $ENV = hotfix ]; then
           PATCH=$(($PATCH+1))
         fi
 
@@ -259,6 +260,7 @@ steps:
       - export VERS=$(git tag -l --sort=-v:refname "*-stable" | head -1)
       - git checkout tags/$VERS -b $VERS
       - export EV=prod # sandbox $(echo ${DRONE_BRANCH} | cut -d/ -f2)
+      - export AWS_REGION=$([ $EV = "prod" ] && echo us-east-2 || echo us-east-2)
       - export APP=${DRONE_REPO_NAME} # adapter-broker
       - export ENV=$APP-${DRONE_BRANCH##*/}-$EV # adapter-broker-pernambucanas-sandbox
       - export FILE=$VERS.zip # b839f68c.zip
