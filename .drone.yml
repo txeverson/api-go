@@ -251,20 +251,13 @@ steps:
       - if [ -f EXIT ]; then exit 0; fi
       - export VERS=$(git tag -l --sort=-v:refname "*-stable" | head -1)
       - git checkout tags/$VERS -b $VERS
-      # sandbox
-      - export EV=$(echo ${DRONE_BRANCH} | cut -d/ -f2)
-      # us-east-2
-      - export AWS_REGION=$([ $EV = "prod" ] && echo sa-east-1 || echo us-east-2)
-      # adapter-broker
-      - export APP=${DRONE_REPO_NAME}
-      # adapter-broker-pernambucanas-sandbox
-      - export ENV=$APP-${DRONE_BRANCH##*/}-$EV
-      # b839f68c.zip
-      - export FILE=$VERS.zip
-      # s3-deploy-sandbox:adapter-broker/b839f68c.zip
-      - export DEST=s3-deploy-everson-sandbox:${DRONE_REPO_NAME}/$FILE
-      # /builds/adapter-broker.b839f68c.zip
-      - export CACHE_FILE=/builds/${DRONE_REPO_NAME}.$FILE
+      - export EV=prod # sandbox $(echo ${DRONE_BRANCH} | cut -d/ -f2)
+      - export AWS_REGION=$([ $EV = "prod" ] && echo us-east-2 || echo us-east-2) # us-east-2
+      - export APP=${DRONE_REPO_NAME} # adapter-broker
+      - export ENV=$APP-${DRONE_BRANCH##*/}-$EV # adapter-broker-pernambucanas-sandbox
+      - export FILE=$VERS.zip # b839f68c.zip
+      - export DEST=s3-deploy-everson-$EV:${DRONE_REPO_NAME}/$FILE # s3-deploy-sandbox:adapter-broker/b839f68c.zip
+      - export CACHE_FILE=/builds/${DRONE_REPO_NAME}.$FILE # /builds/adapter-broker.b839f68c.zip
       # check environment variables on EB
       - checkenv -application=$APP -environment=$ENV -envs="$(grep -Eo '([A-Z][A-Z_0-9]+)$' settings/$EV.yml | xargs)"
       - |
@@ -317,7 +310,6 @@ steps:
             fi
           done
         fi
-
     environment:
       AWS_ACCESS_KEY:
         from_secret: AWS_ACCESS_KEY
