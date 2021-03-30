@@ -117,8 +117,6 @@ steps:
       - checkenv -application=$APP -environment=$ENV -envs="$(grep -Eo '([A-Z][A-Z_0-9]+)$' settings/$EV.yml | xargs)"
 
       - |
-        echo \[$DEST]
-
         FLAG=/flags/${DRONE_REPO_NAME}.$EV.${DRONE_COMMIT_SHA:0:8}
 
         if [ ! -f $FLAG ] && [ ! -f $FLAG.lock ]; then
@@ -207,7 +205,7 @@ trigger:
     - release_prepare
 
 steps:
-  - name: version
+  - name: create_tag
     pull: if-not-exists
     image: drone/git:latest
     commands:
@@ -239,12 +237,82 @@ steps:
         git tag -a $VERS_NEW -m $VERS_NEW
         git push origin --tags
 
+  - name: create_image
+    pull: if-not-exists
+    volumes:
+      - name: flags
+        path: /flags
+      - name: builds
+        path: /builds
+      - name: go
+        path: /go
+    image: appmerci/deploy-beanstalk:2.0.0
+    commands:
+      - if [ -f EXIT ]; then exit 0; fi
+      - export VERS=$(git tag -l --sort=-v:refname "*-stable" | head -1)
+      - git checkout tags/$VERS -b $VERS
+      - export EV=$(echo ${DRONE_BRANCH} | cut -d/ -f2)
+      - export AWS_REGION=us-east-2
+      - export APP=${DRONE_REPO_NAME}
+      - export ENV=$APP-${DRONE_BRANCH##*/}-$EV
+      - export FILE=$VERS.zip
+      - export DEST=s3-deploy-everson-$EV:${DRONE_REPO_NAME}/$FILE
+      - export CACHE_FILE=/builds/${DRONE_REPO_NAME}.$FILE
+      # check environment variables on EB
+      - checkenv -application=$APP -environment=$ENV -envs="$(grep -Eo '([A-Z][A-Z_0-9]+)$' settings/$EV.yml | xargs)"
+      - |
+        FLAG=/flags/${DRONE_REPO_NAME}.$EV.${DRONE_COMMIT_SHA:0:8}
+
+        if [ ! -f $FLAG ] && [ ! -f $FLAG.lock ]; then
+          touch $FLAG.lock
+          echo \[$(date)] locking...
+
+          if fileexistsons3 $DEST >/dev/null 2>&1; then
+            echo \[$(date)] build found on S3
+          else
+
+            if [ -f $CACHE_FILE ]; then
+              echo \[$(date)] using build from cache
+            else
+              echo \[$(date)] building...
+
+              # build go
+              # go build -o application
+
+              # zip files
+              zip -r $CACHE_FILE application.go settings .ebextensions go.mod go.sum
+
+              # remove builds older than 5 days
+              find /builds/${DRONE_REPO_NAME}.* -type f -mtime +4 -exec rm {} +;
+            fi
+
+            echo \[$(date)] uploading...
+            uploads3 $CACHE_FILE $DEST
+          fi
+
+          rm -f $FLAG.lock
+          touch $FLAG
+
+          # remove flags older than 5 days ago
+          find /flags/${DRONE_REPO_NAME}.$EV* -type f -mtime +4 -exec rm {} +;
+
+        else
+          echo \[$(date)] waiting upload...
+          for i in $(seq 1 120); do
+            if [ -f $FLAG ]; then
+              break
+            elif [ $i = 120 ]; then
+              echo \[$(date)] timeout
+              exit 1
+            else
+              echo \[$(date)] ...
+              sleep 5
+            fi
+          done
+        fi
+
     environment:
       AWS_ACCESS_KEY:
         from_secret: AWS_ACCESS_KEY
       AWS_SECRET_KEY:
         from_secret: AWS_SECRET_KEY
-    when:
-      branch:
-        exclude:
-          - deploy/sandbox/all
