@@ -229,13 +229,14 @@ steps:
 
         if [ -z "$MINOR" ]; then
           MINOR=0
-        elif [$ENV = "release"]; then
+        elif [ $ENV = release ]; then
           MINOR=$(($MINOR+1))
+          PATCH=0
         fi
 
         if [ -z "$PATCH" ]; then
           PATCH=0
-        elif [$ENV = "hotfix"]; then
+        elif [ $ENV = hotfix ]; then
           PATCH=$(($PATCH+1))
         fi
 
