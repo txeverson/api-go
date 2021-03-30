@@ -86,8 +86,8 @@ steps:
         if [ $(echo ${DRONE_BRANCH} | cut -d/ -f3) = all ]; then
           EV=$(echo $DRONE_BRANCH | cut -d/ -f2)
 
-          # iterate over settings/intance-$ENV.yml, *cut instance name and push
-          ls settings/*-$EV.yml | cut -d/ -f2 | cut -d"-" -f1 | xargs -I@ echo ${DRONE_TARGET_BRANCH}:deploy/$EV/@ | awk 'ORS=" "' | xargs git push origin -f
+          # iterate over settings/intance-sandbox.yml, *cut instance name and push
+          ls settings/*-sandbox.yml | cut -d/ -f2 | cut -d"-" -f1 | xargs -I@ echo ${DRONE_TARGET_BRANCH}:deploy/sandbox/@ | awk 'ORS=" "' | xargs git push origin -f
         fi
 
   - name: deploy
@@ -102,10 +102,8 @@ steps:
     image: appmerci/deploy-beanstalk:2.0.0
     commands:
       - if [ -f EXIT ]; then exit 0; fi
-
-      - export EV=$(echo ${DRONE_BRANCH} | cut -d/ -f2)
+      - export EV=sandbox #$(echo ${DRONE_BRANCH} | cut -d/ -f2)
       - export AWS_REGION=us-east-2
-
       - export APP=${DRONE_REPO_NAME}
       - export ENV=$APP-${DRONE_BRANCH##*/}-$EV
       - export VERSION=$APP.${DRONE_BRANCH##*/}.${DRONE_COMMIT_SHA:0:8}.`date +%Y%m%d`
@@ -365,7 +363,7 @@ steps:
           EV=$(echo $DRONE_BRANCH | cut -d/ -f2)
 
           # iterate over settings/intance-$ENV.yml, *cut instance name and push
-          ls settings/*-$EV.yml | cut -d/ -f2 | cut -d"-" -f1 | xargs -I@ echo ${DRONE_TARGET_BRANCH}:deploy/$EV/@ | awk 'ORS=" "' | xargs git push origin -f
+          ls settings/*-prod.yml | cut -d/ -f2 | cut -d"-" -f1 | xargs -I@ echo ${DRONE_TARGET_BRANCH}:deploy/prod/@ | awk 'ORS=" "' | xargs git push origin -f
         fi
 
   - name: deploy
