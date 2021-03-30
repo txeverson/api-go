@@ -202,9 +202,9 @@ clone:
 
 trigger:
   event:
-    - push
+    - pull_request
   branch:
-    - release_prepare
+    - release/*
 
 steps:
   - name: version
