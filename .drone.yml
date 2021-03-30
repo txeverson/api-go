@@ -202,13 +202,14 @@ trigger:
   event:
     - push
   branch:
-    - release_prepare
+    - prepare/**
 
 steps:
   - name: create-tag
     pull: if-not-exists
     image: drone/git:latest
     commands:
+      - export ENV=$(echo ${DRONE_BRANCH} | cut -d/ -f2)
       - git config --global user.email "tx.everson@gmail.com"
       - git config --global user.name "Everson Teixeira"
       - git init
@@ -228,11 +229,17 @@ steps:
 
         if [ -z "$MINOR" ]; then
           MINOR=0
-        else
+        elif [$ENV = "release"]; then
           MINOR=$(($MINOR+1))
         fi
 
-        VERS_NEW=$MAJOR.$MINOR."0-stable"
+        if [ -z "$PATCH" ]; then
+          PATCH=0
+        elif [$ENV = "hotfix"]; then
+          PATCH=$(($PATCH+1))
+        fi
+
+        VERS_NEW=$MAJOR.$MINOR.$PATCH"-stable"
 
         git tag -a $VERS_NEW -m $VERS_NEW
         git push origin --tags
@@ -252,7 +259,6 @@ steps:
       - export VERS=$(git tag -l --sort=-v:refname "*-stable" | head -1)
       - git checkout tags/$VERS -b $VERS
       - export EV=prod # sandbox $(echo ${DRONE_BRANCH} | cut -d/ -f2)
-      - export AWS_REGION=$([ $EV = "prod" ] && echo us-east-2 || echo us-east-2) # us-east-2
       - export APP=${DRONE_REPO_NAME} # adapter-broker
       - export ENV=$APP-${DRONE_BRANCH##*/}-$EV # adapter-broker-pernambucanas-sandbox
       - export FILE=$VERS.zip # b839f68c.zip
